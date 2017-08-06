@@ -5,7 +5,7 @@ public enum VirtualFileSystemNodeType {
     /**
      * Denotes a regular file.
      */
-    FILE,
+    REGULAR_FILE,
     
     /**
      * Denotes a directory.
