@@ -75,7 +75,7 @@ public class VirtualFileSystemNode {
      * object is directory, and this field caches the size of all files in this
      * subtree. If this node is a link, caches the size of the linked node.
      */
-    private int fileSize;
+    private int nodeSize;
     
     /**
      * Stores the time at which this node was created. The number of 
@@ -129,7 +129,8 @@ public class VirtualFileSystemNode {
     private boolean dirty;
     
     /**
-     * The index of the block that contains the metadata of this node.
+     * The index of the block that contains the metadata of this node or -1 if
+     * this node was not persisted into the native image file.
      */
     private int metablockIndex;
     
@@ -141,20 +142,45 @@ public class VirtualFileSystemNode {
         createRegularFile(String fileName, 
                           String password, 
                           VirtualFileSystemNode parentDirectory) {
-        return null;
+        VirtualFileSystemNode node =
+                new VirtualFileSystemNode(
+                        fileName,
+                        password,
+                        parentDirectory,
+                        VirtualFileSystemNodeType.REGULAR_FILE,
+                        null);
+                                                               
+        return node;
     }
         
     public static VirtualFileSystemNode
         createDirectory(String directoryName,
                         String password,
                         VirtualFileSystemNode parentDirectory) {
-        return null;       
+        VirtualFileSystemNode node = 
+                new VirtualFileSystemNode(
+                        directoryName,
+                        password,
+                        parentDirectory,
+                        VirtualFileSystemNodeType.DIRECTORY,
+                        null);
+        
+        return node;
     }
         
     public static VirtualFileSystemNode
         createSymbolicLink(String linkName,
+                           String password,
                            VirtualFileSystemNode parentDirectory,
                            VirtualFileSystemNode linkedNode) {
+        Objects.requireNonNull(linkedNode, "The linked node is null.");
+        VirtualFileSystemNode node =
+                new VirtualFileSystemNode(
+                        linkName,
+                        password,
+                        parentDirectory,
+                        VirtualFileSystemNodeType.SYMBOLIC_LINK,
+                        linkedNode);
         return null;
     }
     
@@ -214,6 +240,60 @@ public class VirtualFileSystemNode {
         }
     }
     
+    public void attachNode(VirtualFileSystemNode node) {
+        Objects.requireNonNull(node, "The input node is null.");
+    }
+    
+    /**
+     * Returns the node size. If this node represents a regular file, the size
+     * of that file is returned. If this node represents a directory, returns 
+     * the size of all the file in the subtree represented by this directory.
+     * If this node is a link, returns recursively the size of the linked node.
+     * 
+     * @return the size in bytes.
+     */
+    public int getNodeSize() {
+        return nodeSize;
+    }
+    
+    /**
+     * Returns the creation time stamp of this node that is represented by the
+     * number of milliseconds since the Unix Epoch (00:00:00 UTC Thursday 1
+     * January, 1970).
+     * 
+     * @return the creation time stamp.
+     */
+    public long getCreationTimestamp() {
+        return creationTime;
+    }
+    
+    /**
+     * Returns the last access time stamp in milliseconds since the Unix Epoch.
+     * 
+     * @return the last access time stamp.
+     */
+    public long getLastAccessTimestamp() {
+        return lastAccessedTime;
+    }
+    
+    /**
+     * Returns the last modification time stamp in milliseconds since the Unix
+     * Epoch.
+     * 
+     * @return the last modification time stamp.
+     */
+    public long getLastModificationTimestamp() {
+        return lastModificationTime;
+    }
+    
+    public void loadFile() {
+        
+    }
+    
+    public void storeFile() {
+        
+    }
+    
     /**
      * Converts this node's metadata into a metablock, that describes the node
      * and not its content.
@@ -239,7 +319,7 @@ public class VirtualFileSystemNode {
         }
         
         // The file size:
-        byteBuffer.putInt(fileSize);
+        byteBuffer.putInt(nodeSize);
         
         // Password?
         byteBuffer.put(passwordHash != null ? PASSWORD_ON : PASSWORD_OFF);
