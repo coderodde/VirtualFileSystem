@@ -1,6 +1,8 @@
 package net.coderodde.vfs;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This class provides a view over a virtual file system via its application 
@@ -11,6 +13,12 @@ import java.io.File;
  */
 public final class VirtualFilesystem {
 
+    /**
+     * The number of blocks in this virtual file system; both occupied and 
+     * unoccupied.
+     */
+    private int totalBlocks;
+    
     /**
      * Reads a virtual file system from a given native image file.
      * 
@@ -34,5 +42,9 @@ public final class VirtualFilesystem {
         return readVirtualFileSystemFromNativeImage(new File(fileName));
     }
     
-    
+    /**
+     * Holds all the unoccupied block ranges that are ready for reuse.
+     */
+    private final List<VirtualFileSystemBlockIndexRange> emptyBlockRangeList =
+            new ArrayList<>();
 }

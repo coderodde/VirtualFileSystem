@@ -1,5 +1,7 @@
 package net.coderodde.vfs;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -16,10 +18,40 @@ import java.util.Objects;
 public class VirtualFileSystemNode {
     
     /**
+     * The byte value indicating that the node has a password.
+     */
+    private static final byte PASSWORD_ON = 1;
+    
+    /**
+     * The byte value indicating that the node has no password.
+     */
+    private static final byte PASSWORD_OFF = 0;
+    
+    /**
+     * Used to indicate in the metablock that this node is a symbolic link.
+     */
+    private static final byte SYMBOLIC_LINK_ON = 1;
+    
+    /**
+     * Used to indicate in the metablock that this node is not a symbolic link.
+     */
+    private static final byte SYMBOLIC_LINK_OFF = 0;
+    
+    /**
+     * Each file system block is half kilobytes large.
+     */
+    private static final int BLOCK_SIZE = 512;
+    
+    /**
      * Maximum number of {@code char}s in a node name regardless of the type of
      * the node.
      */
     private static final int MAXIMUM_NODE_NAME_LENGTH = 64;
+    
+    /**
+     * The number of bytes in a password hash.
+     */
+    private static final int PASSWORD_HASH_LENGTH = 32;
     
     /**
      * Stores the node type of this node.
@@ -96,7 +128,14 @@ public class VirtualFileSystemNode {
      */
     private boolean dirty;
     
-    private final List<VirtualFileBlock> dataBlockList;
+    /**
+     * The index of the block that contains the metadata of this node.
+     */
+    private int metablockIndex;
+    
+    private final List<VirtualFileBlock> dataBlockList = null;
+    
+    
     
     public static VirtualFileSystemNode 
         createRegularFile(String fileName, 
@@ -173,6 +212,70 @@ public class VirtualFileSystemNode {
             default:
                 throw new IllegalStateException("This should not be thrown.");
         }
+    }
+    
+    /**
+     * Converts this node's metadata into a metablock, that describes the node
+     * and not its content.
+     * 
+     * @return the metablock bytes.
+     */
+    byte[] convertToMetaBlock() {
+        ByteBuffer byteBuffer = ByteBuffer.allocate(BLOCK_SIZE)
+                                          .order(ByteOrder.LITTLE_ENDIAN);
+        // Emit the node type:
+        byteBuffer.put(nodeType.getValue());
+        
+        // The index of the block that contains the metadata of the parent node:
+        byteBuffer.putInt(parent.metablockIndex);
+        
+        // The number of characters in the name of this node:
+        int nodeNameLength = nodeName.length();
+        byteBuffer.putInt(nodeNameLength);
+        
+        // The actual node name characters:
+        for (int i = 0; i < nodeNameLength; ++i) {
+            byteBuffer.putChar(nodeName.charAt(i));
+        }
+        
+        // The file size:
+        byteBuffer.putInt(fileSize);
+        
+        // Password?
+        byteBuffer.put(passwordHash != null ? PASSWORD_ON : PASSWORD_OFF);
+        
+        if (passwordHash != null) {
+            // Indicate that password present:
+            byteBuffer.put(PASSWORD_ON);
+            
+            // Emit the password hash:
+            byteBuffer.put(passwordHash);
+        } else {
+            byteBuffer.put(PASSWORD_OFF);
+        }
+        
+        // The creation time stamp:
+        byteBuffer.putLong(creationTime);
+        
+        // The last access time stamp:
+        byteBuffer.putLong(lastAccessedTime);
+        
+        // The last modification time stamp:
+        byteBuffer.putLong(lastModificationTime);
+        
+        if (link != null) {
+            byteBuffer.put(SYMBOLIC_LINK_ON);
+            byteBuffer.putInt(link.metablockIndex);
+        } else {
+            byteBuffer.put(SYMBOLIC_LINK_OFF);
+        }
+        
+        if (nodeType.equals(VirtualFileSystemNodeType.DIRECTORY)) {
+            // Emit something relevant for directory. TODO:
+        }
+        
+        byteBuffer.position(0);
+        return byteBuffer.array();
     }
     
     private String checkNodeName(String name, 
